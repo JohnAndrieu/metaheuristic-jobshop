@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="jobshop.encodings.EncodingTests" tests="2" skipped="0" failures="0" errors="0" timestamp="2020-04-15T16:36:58" hostname="MacBookPro.local" time="0.037">
+  <properties/>
+  <testcase name="testBasicSolver" classname="jobshop.encodings.EncodingTests" time="0.028"/>
+  <testcase name="testJobNumbers" classname="jobshop.encodings.EncodingTests" time="0.008"/>
+  <system-out><![CDATA[jobshop.Schedule@18b84ea
+]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

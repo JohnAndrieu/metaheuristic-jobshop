@@ -17,119 +17,73 @@ public class TabooSolver implements Solver {
     @Override
     public Result solve(Instance instance, long deadline) {
 
-        GreedyEST_LRPTSolver glouton = new GreedyEST_LRPTSolver();
-        Result s = glouton.solve(instance,deadline);
-        //on s_local = meilleur solution pour l'itération
-        Result s_local = s;
-        int best = s.schedule.makespan();
-        int ListeTaboo [][] = new int[instance.numJobs*instance.numMachines][instance.numJobs*instance.numMachines];
-        //k permet de compter les itérations
+        Result best_s = new GreedyEST_LRPTSolver().solve(instance,deadline);
+        Result local_s = best_s;
+
+        int best_makespan = best_s.schedule.makespan();
+
+        int tabou [][] = new int [instance.numJobs*instance.numMachines][instance.numJobs*instance.numMachines];
+
         int k = 0;
-        int maxIter=100;
-        int dureeTabou=10;
-        //tant que le nombre d'itération max n'est pas atteinte et que la deadline n'est pas atteinte
-        while (k < maxIter && deadline - System.currentTimeMillis() > 1) {
+        int maxIter = 100;
+        int tabouTime = 10;
+
+        while(k < maxIter && deadline > 0) {
+
             k++;
-            //l'order qui correspond au meilleur schedule (s)
-            ResourceOrder order = new ResourceOrder(s.schedule);
-            //l'order qui correspond au meilleur schedule de l'itération (s_local)
-            ResourceOrder order_local = new ResourceOrder(s_local.schedule);
-            //la liste des Block du chemin critique
-            List<DescentSolver.Block> blocksList = blocksOfCriticalPath(order_local);
-            //variables pour stocker les meilleurs résultats locaux
-            DescentSolver.Swap bestSwap = null;
-            int best_local = -1;
-            for (DescentSolver.Block block : blocksList) {
-                //la liste des Swap pour le Block
-                List<DescentSolver.Swap> swapList = neighbors(block);
-                for (DescentSolver.Swap swap : swapList) {
-                    //avant de tester le swap, on vérifie qu'il est autorisé
-                    if (k > ListeTaboo[swap.t1][swap.t2]) {
-                        //on copie l'ordre de s et on applique le swap
-                        ResourceOrder copy = order_local.copy();
-                        swap.applyOn(copy);
-                        int makespan = copy.toSchedule().makespan();
-                        //si le swap retourne un meilleur résultat que le résultat local on actualise s_local
-                        if (best_local == -1 || makespan < best_local) {
-                            bestSwap = swap;
-                            best_local = makespan;
-                            order_local = copy;
-                            //si le swap est également meilleur que s, on actulise s
-                            if (makespan < best) {
-                                best = makespan;
-                                order = copy;
+
+            ResourceOrder current_order = new ResourceOrder(best_s.schedule);
+
+            ResourceOrder current_local_order = new ResourceOrder(local_s.schedule);
+
+            List<Utils.Block> blocksFromCriticalPath = Utils.blocksOfCriticalPath(current_local_order);
+
+            Utils.Swap best_swap = null;
+
+            int best_local_makespan = -1;
+
+            for (Utils.Block block : blocksFromCriticalPath) {
+
+                List<Utils.Swap> swapsFromBlock = Utils.neighbors(block);
+
+                for (Utils.Swap swap : swapsFromBlock) {
+
+                    if(k > tabou[swap.t1][swap.t2]) {
+
+                        ResourceOrder neighbor = current_local_order.copy();
+
+                        swap.applyOn(neighbor);
+
+                        int current_makespan = neighbor.toSchedule().makespan();
+
+                        if(best_local_makespan == -1 || current_makespan < best_local_makespan) {
+                            best_swap = swap;
+                            best_local_makespan = current_makespan;
+                            current_local_order = neighbor;
+
+                            if(current_makespan < best_makespan) {
+                                best_makespan = current_makespan;
+                                current_order = neighbor;
                             }
+
                         }
                     }
                 }
             }
-            //si un swap est meilleur que la solution locale on l'ajoute à la structure
-            if (bestSwap != null) {
-                ListeTaboo[bestSwap.t1][bestSwap.t2] = k + dureeTabou;
+
+            if(best_swap != null) {
+                tabou[best_swap.t1][best_swap.t2] = k + tabouTime;
             }
-            //on actualise s et s_local
-            s_local = new Result(order_local.instance, order_local.toSchedule(), Result.ExitCause.Blocked);
-            s = new Result(order.instance, order.toSchedule(), Result.ExitCause.Blocked);
+
+            local_s = new Result(current_local_order.instance, current_local_order.toSchedule(), Result.ExitCause.Blocked);
+            best_s = new Result(current_order.instance, current_order.toSchedule(), Result.ExitCause.Blocked);
+
+            deadline--;
         }
-        //en fonction de si maxIter a été atteint ou si la deadline a été atteinte
-        //on ne retourne pas la même raison de sortie
-        if (k == maxIter) return s;
-        return new Result(s.instance, s.schedule, Result.ExitCause.Timeout);
-    }
-
-    /** Returns a list of all blocks of the critical path. */
-    List<DescentSolver.Block> blocksOfCriticalPath(ResourceOrder order) {
-        List<DescentSolver.Block> blocks = new ArrayList<>();
-
-        List<Task> tasksOfCriticalPath = order.toSchedule().criticalPath();
-
-        int firstTask = 0;
-        int lastTask = 0;
-
-        boolean isInit = false;
-
-        int machine = 0;
-
-        for(Task t : tasksOfCriticalPath) {
-            if(!isInit) {
-                machine = order.instance.machine(t);
-                firstTask = Arrays.asList(order.tasksByMachine[machine]).indexOf(t);
-                lastTask = firstTask;
-                isInit = true;
-            } else {
-                if (machine == order.instance.machine(t)) {
-                    lastTask++;
-                }
-                else {
-                    if(firstTask != lastTask) {
-                        blocks.add(new DescentSolver.Block(machine,firstTask,lastTask));
-                    }
-                    machine = order.instance.machine(t);
-                    firstTask = Arrays.asList(order.tasksByMachine[machine]).indexOf(t);
-                    lastTask = firstTask;
-                }
-            }
-        }
-
-        return blocks;
-
-    }
-
-    /** For a given block, return the possible swaps for the Nowicki and Smutnicki neighborhood */
-    List<DescentSolver.Swap> neighbors(DescentSolver.Block block) {
-
-        List<DescentSolver.Swap> swaps = new ArrayList<DescentSolver.Swap>();
-        int diff = block.lastTask - block.firstTask;
-
-        if (diff >= 2) {
-            swaps.add(new DescentSolver.Swap(block.machine,block.firstTask,block.firstTask+1));
-            swaps.add(new DescentSolver.Swap(block.machine,block.lastTask-1,block.lastTask));
-        }
-        else {
-            swaps.add(new DescentSolver.Swap(block.machine,block.firstTask,block.lastTask));
-        }
-
-        return swaps;
+        if (k == maxIter) return best_s;
+        return new Result(best_s.instance, best_s.schedule, Result.ExitCause.Timeout);
     }
 
 }
+
+

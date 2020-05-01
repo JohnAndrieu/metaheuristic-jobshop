@@ -8,15 +8,15 @@ import jobshop.encodings.Task;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 
 public class GreedyEST_SRPTSolver implements Solver {
 
     @Override
     public Result solve(Instance instance, long deadline) {
-
-        ArrayList<Task> TasksToDo = new ArrayList<Task>();
-        ArrayList<Task> TasksDone = new ArrayList<Task>();
-        ArrayList<Task> MinimalsTasks = new ArrayList<Task>();
+        HashSet<Task> TasksToDo = new HashSet<Task>();
+        HashSet<Task> TasksDone = new HashSet<Task>();
+        HashSet<Task> MinimalsTasks = new HashSet<Task>();
 
         ResourceOrder rso = new ResourceOrder(instance);
 
@@ -52,27 +52,23 @@ public class GreedyEST_SRPTSolver implements Solver {
             MinimalsTasks.clear();
             int minStartTime = -1;
 
-            for(int i = 0 ; i < TasksToDo.size() ; i++) {
-
-                Task current = TasksToDo.get(i);
+            for(Task task : TasksToDo) {
 
                 if (minStartTime == -1) {
-                    minStartTime = (current.task == 0) ? 0 : startTimes[current.job][current.task-1] + instance.duration(current.job, current.task-1);
-                    minStartTime = Math.max(minStartTime, releaseTimeOfMachine[instance.machine(current)]);
-                    MinimalsTasks.add(current);
-                }
-                else {
-
-                    int estT = (current.task == 0) ? 0 : startTimes[current.job][current.task-1] + instance.duration(current.job, current.task-1);
-                    estT = Math.max(estT, releaseTimeOfMachine[instance.machine(current.job,current.task)]);
+                    minStartTime = (task.task == 0) ? 0 : startTimes[task.job][task.task-1] + instance.duration(task.job, task.task-1);
+                    minStartTime = Math.max(minStartTime, releaseTimeOfMachine[instance.machine(task)]);
+                    MinimalsTasks.add(task);
+                } else {
+                    int estT = (task.task == 0) ? 0 : startTimes[task.job][task.task-1] + instance.duration(task.job, task.task-1);
+                    estT = Math.max(estT, releaseTimeOfMachine[instance.machine(task.job,task.task)]);
 
                     if (estT < minStartTime) {
                         MinimalsTasks.clear();
-                        MinimalsTasks.add(current);
+                        MinimalsTasks.add(task);
                         minStartTime = estT;
                     }
                     else if (estT == minStartTime) {
-                        MinimalsTasks.add(current);
+                        MinimalsTasks.add(task);
                     }
                 }
             }
@@ -98,10 +94,11 @@ public class GreedyEST_SRPTSolver implements Solver {
             rso.addTask(rsc,job,task);
 
             TasksToDo.remove(shortest);
-            TasksDone.add(shortest);
+            JobDurationDone[shortest.job]+=instance.duration(shortest);
 
             if(instance.numTasks-1 > task) {
                 TasksToDo.add(new Task(job, task + 1));
+                TasksDone.add(shortest);
             }
         }
 
